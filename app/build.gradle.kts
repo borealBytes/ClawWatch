@@ -5,14 +5,14 @@ plugins {
 
 android {
     namespace = "com.thinkoff.clawwatch"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.thinkoff.clawwatch"
-        minSdk = 30  // Wear OS 3 = API 30
-        targetSdk = 34
-        versionCode = 2
-        versionName = "1.0.0"
+        minSdk = 33 // Wear OS 4+ = API 33 (2021-2025 watches)
+        targetSdk = 35 // Android 15 (2026 best practice)
+        versionCode = 3
+        versionName = "1.1.0"
     }
 
     buildTypes {

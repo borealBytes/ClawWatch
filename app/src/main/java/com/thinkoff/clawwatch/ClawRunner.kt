@@ -14,6 +14,176 @@ import java.net.URLEncoder
 import java.util.zip.GZIPInputStream
 
 /**
+ * Supported LLM providers
+ */
+enum class LLMProvider {
+    ANTHROPIC,
+    OPENCODE_ZEN,
+    NVIDIA,
+    MOONSHOT
+}
+
+/**
+ * Provider configuration sealed class for provider-specific settings
+ */
+sealed class ProviderConfig(
+    open val apiKey: String,
+    open val endpoint: String,
+    open val model: String
+) {
+    abstract fun buildRequestBody(
+        model: String,
+        maxTokens: Int,
+        systemPrompt: String,
+        messages: JSONArray
+    ): JSONObject
+
+    abstract fun extractResponseText(response: JSONObject): String?
+
+    abstract fun getHeaders(): Map<String, String>
+
+    data class AnthropicConfig(
+        override val apiKey: String,
+        override val model: String = "claude-opus-4-6"
+    ) : ProviderConfig(apiKey, "https://api.anthropic.com/v1/messages", model) {
+        override fun getHeaders(): Map<String, String> = mapOf(
+            "Content-Type" to "application/json",
+            "x-api-key" to apiKey,
+            "anthropic-version" to "2023-06-01"
+        )
+
+        override fun buildRequestBody(
+            model: String,
+            maxTokens: Int,
+            systemPrompt: String,
+            messages: JSONArray
+        ): JSONObject = JSONObject().apply {
+            put("model", model)
+            put("max_tokens", maxTokens)
+            put("system", systemPrompt)
+            put("messages", messages)
+        }
+
+        override fun extractResponseText(response: JSONObject): String? = try {
+            response.getJSONArray("content")
+                .getJSONObject(0)
+                .getString("text")
+        } catch (e: Exception) { null }
+    }
+
+    data class OpenCodeZenConfig(
+        override val apiKey: String = "public",
+        override val model: String = "gpt-5-nano"
+    ) : ProviderConfig(apiKey, "https://opencode.ai/zen/v1/responses", model) {
+        override fun getHeaders(): Map<String, String> = mapOf(
+            "Content-Type" to "application/json",
+            "Authorization" to "Bearer $apiKey"
+        )
+
+        override fun buildRequestBody(
+            model: String,
+            maxTokens: Int,
+            systemPrompt: String,
+            messages: JSONArray
+        ): JSONObject = JSONObject().apply {
+            put("model", model)
+            put("max_tokens", maxTokens)
+            put("messages", JSONArray().apply {
+                // Add system message as first message
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", systemPrompt)
+                })
+                // Add conversation messages
+                for (i in 0 until messages.length()) {
+                    put(messages.getJSONObject(i))
+                }
+            })
+        }
+
+        override fun extractResponseText(response: JSONObject): String? = try {
+            // OpenAI-compatible format
+            response.getJSONArray("choices")
+                .getJSONObject(0)
+                .getJSONObject("message")
+                .getString("content")
+        } catch (e: Exception) { null }
+    }
+
+    data class NvidiaConfig(
+        override val apiKey: String,
+        override val model: String = "moonshotai/kimi-k2.5"
+    ) : ProviderConfig(apiKey, "https://integrate.api.nvidia.com/v1/chat/completions", model) {
+        override fun getHeaders(): Map<String, String> = mapOf(
+            "Content-Type" to "application/json",
+            "Authorization" to "Bearer $apiKey"
+        )
+
+        override fun buildRequestBody(
+            model: String,
+            maxTokens: Int,
+            systemPrompt: String,
+            messages: JSONArray
+        ): JSONObject = JSONObject().apply {
+            put("model", model)
+            put("max_tokens", maxTokens)
+            put("messages", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", systemPrompt)
+                })
+                for (i in 0 until messages.length()) {
+                    put(messages.getJSONObject(i))
+                }
+            })
+        }
+
+        override fun extractResponseText(response: JSONObject): String? = try {
+            response.getJSONArray("choices")
+                .getJSONObject(0)
+                .getJSONObject("message")
+                .getString("content")
+        } catch (e: Exception) { null }
+    }
+
+    data class MoonshotConfig(
+        override val apiKey: String,
+        override val model: String = "kimi-k2.5"
+    ) : ProviderConfig(apiKey, "https://api.moonshot.cn/v1/chat/completions", model) {
+        override fun getHeaders(): Map<String, String> = mapOf(
+            "Content-Type" to "application/json",
+            "Authorization" to "Bearer $apiKey"
+        )
+
+        override fun buildRequestBody(
+            model: String,
+            maxTokens: Int,
+            systemPrompt: String,
+            messages: JSONArray
+        ): JSONObject = JSONObject().apply {
+            put("model", model)
+            put("max_tokens", maxTokens)
+            put("messages", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", systemPrompt)
+                })
+                for (i in 0 until messages.length()) {
+                    put(messages.getJSONObject(i))
+                }
+            })
+        }
+
+        override fun extractResponseText(response: JSONObject): String? = try {
+            response.getJSONArray("choices")
+                .getJSONObject(0)
+                .getJSONObject("message")
+                .getString("content")
+        } catch (e: Exception) { null }
+    }
+}
+
+/**
  * ClawRunner — manages NullClaw binary + Anthropic API calls with optional RAG.
  *
  * RAG modes:
@@ -30,13 +200,32 @@ class ClawRunner(private val context: Context) {
         private const val TAG = "ClawRunner"
         private const val CONFIG_NAME = "nullclaw.json"
         private const val CONFIG_FALLBACK_NAME = "nullclaw.json.example"
+
+        // Legacy Anthropic key (backward compatibility)
         private const val PREF_API_KEY = "anthropic_api_key"
+
+        // Provider selection (default: OPENCODE_ZEN for zero-config setup)
+        private const val PREF_PROVIDER = "llm_provider"
+
+        // Provider-specific API keys
+        private const val PREF_ANTHROPIC_KEY = "anthropic_api_key"
+        private const val PREF_NVIDIA_KEY = "nvidia_api_key"
+        private const val PREF_MOONSHOT_KEY = "moonshot_api_key"
+        // OpenCode Zen uses "public" placeholder, no key needed
+
         private const val PREF_MODEL = "model"
         private const val PREF_SYSTEM_PROMPT = "system_prompt"
         private const val PREF_MAX_TOKENS = "max_tokens"
-        private const val PREF_RAG_MODE = "rag_mode"         // "off" | "kotlin" | "always" | "opus_tool"
+        private const val PREF_RAG_MODE = "rag_mode" // "off" | "kotlin" | "always" | "opus_tool"
         private const val PREF_BRAVE_KEY = "brave_api_key"
         private const val PREF_TAVILY_KEY = "tavily_api_key"
+
+        // Default provider and models
+        private val DEFAULT_PROVIDER = LLMProvider.OPENCODE_ZEN
+        private const val DEFAULT_MODEL_ANTHROPIC = "claude-opus-4-6"
+        private const val DEFAULT_MODEL_ZEN = "gpt-5-nano"
+        private const val DEFAULT_MODEL_NVIDIA = "moonshotai/kimi-k2.5"
+        private const val DEFAULT_MODEL_MOONSHOT = "kimi-k2.5"
 
         // Keywords that suggest the query needs current/live information
         private val LIVE_INFO_KEYWORDS = setOf(
@@ -47,7 +236,6 @@ class ClawRunner(private val context: Context) {
             "who won", "did they", "is there"
         )
 
-        private const val DEFAULT_MODEL = "claude-opus-4-6"
         private const val DEFAULT_MAX_TOKENS = 150
         private const val DEFAULT_SYSTEM_PROMPT =
             "You are a voice assistant on a Samsung smartwatch. " +
@@ -56,7 +244,17 @@ class ClawRunner(private val context: Context) {
 
         private const val MAX_CONTEXT_MESSAGES = 10
         private const val MAX_CONTEXT_CHARS_PER_MESSAGE = 600
+
+        /**
+         * Get default model for a provider
+         */
+    fun getDefaultModel(provider: LLMProvider): String = when (provider) {
+        LLMProvider.ANTHROPIC -> DEFAULT_MODEL_ANTHROPIC
+        LLMProvider.OPENCODE_ZEN -> DEFAULT_MODEL_ZEN
+        LLMProvider.NVIDIA -> DEFAULT_MODEL_NVIDIA
+        LLMProvider.MOONSHOT -> DEFAULT_MODEL_MOONSHOT
     }
+}
 
     private data class ChatTurn(val role: String, val content: String)
 
@@ -76,7 +274,25 @@ class ClawRunner(private val context: Context) {
 
     // ── Config accessors ─────────────────────────────────────────────────────
 
-    fun saveApiKey(key: String) = prefs.edit().putString(PREF_API_KEY, key).apply()
+    // Provider selection
+    fun saveProvider(provider: LLMProvider) = prefs.edit().putString(PREF_PROVIDER, provider.name).apply()
+    fun getProvider(): LLMProvider = try {
+        prefs.getString(PREF_PROVIDER, null)?.let {
+            LLMProvider.valueOf(it)
+        } ?: DEFAULT_PROVIDER
+    } catch (e: Exception) { DEFAULT_PROVIDER }
+
+    // Provider-specific API key storage
+    fun saveAnthropicKey(key: String) = prefs.edit().putString(PREF_ANTHROPIC_KEY, key).apply()
+    fun saveNvidiaKey(key: String) = prefs.edit().putString(PREF_NVIDIA_KEY, key).apply()
+    fun saveMoonshotKey(key: String) = prefs.edit().putString(PREF_MOONSHOT_KEY, key).apply()
+
+    // Legacy backward compatibility - delegates to Anthropic
+    fun saveApiKey(key: String) {
+        prefs.edit().putString(PREF_API_KEY, key).apply()
+        prefs.edit().putString(PREF_ANTHROPIC_KEY, key).apply()
+    }
+
     fun saveBraveKey(key: String) = prefs.edit().putString(PREF_BRAVE_KEY, key).apply()
     fun saveTavilyKey(key: String) = prefs.edit().putString(PREF_TAVILY_KEY, key).apply()
     fun saveModel(model: String) = prefs.edit().putString(PREF_MODEL, model).apply()
@@ -84,14 +300,66 @@ class ClawRunner(private val context: Context) {
     fun saveMaxTokens(n: Int) = prefs.edit().putInt(PREF_MAX_TOKENS, n).apply()
     fun saveRagMode(mode: String) = prefs.edit().putString(PREF_RAG_MODE, mode).apply()
 
-    fun hasApiKey(): Boolean = prefs.getString(PREF_API_KEY, null)?.isNotBlank() == true
-    private fun getApiKey(): String? = prefs.getString(PREF_API_KEY, null)
+    // Check if provider has a valid API key configured
+    fun hasApiKey(): Boolean = hasProviderApiKey(getProvider())
+
+    fun hasProviderApiKey(provider: LLMProvider): Boolean = when (provider) {
+        LLMProvider.ANTHROPIC -> getAnthropicKey()?.isNotBlank() == true
+        LLMProvider.OPENCODE_ZEN -> true // No key needed
+        LLMProvider.NVIDIA -> getNvidiaKey()?.isNotBlank() == true
+        LLMProvider.MOONSHOT -> getMoonshotKey()?.isNotBlank() == true
+    }
+
+    // Get API key for current provider
+    private fun getProviderApiKey(): String? = getApiKeyForProvider(getProvider())
+
+    fun getApiKeyForProvider(provider: LLMProvider): String? = when (provider) {
+        LLMProvider.ANTHROPIC -> getAnthropicKey()
+        LLMProvider.OPENCODE_ZEN -> "public" // Public placeholder for free tier
+        LLMProvider.NVIDIA -> getNvidiaKey()
+        LLMProvider.MOONSHOT -> getMoonshotKey()
+    }
+
+    private fun getAnthropicKey(): String? = prefs.getString(PREF_ANTHROPIC_KEY, null)
+        ?: prefs.getString(PREF_API_KEY, null) // Fallback to legacy key
+    private fun getNvidiaKey(): String? = prefs.getString(PREF_NVIDIA_KEY, null)
+    private fun getMoonshotKey(): String? = prefs.getString(PREF_MOONSHOT_KEY, null)
+
+    // Legacy backward compatibility
+    private fun getApiKey(): String? = getProviderApiKey()
+
     private fun getBraveKey(): String? = prefs.getString(PREF_BRAVE_KEY, null)
     private fun getTavilyKey(): String? = prefs.getString(PREF_TAVILY_KEY, null)
-    private fun getModel(): String = prefs.getString(PREF_MODEL, DEFAULT_MODEL) ?: DEFAULT_MODEL
+
+    // Get model with provider-specific default
+    private fun getModel(): String {
+        val saved = prefs.getString(PREF_MODEL, null)
+        return if (!saved.isNullOrBlank()) saved else getDefaultModel(getProvider())
+    }
+
+    private fun getDefaultModel(provider: LLMProvider): String = when (provider) {
+        LLMProvider.ANTHROPIC -> DEFAULT_MODEL_ANTHROPIC
+        LLMProvider.OPENCODE_ZEN -> DEFAULT_MODEL_ZEN
+        LLMProvider.NVIDIA -> DEFAULT_MODEL_NVIDIA
+        LLMProvider.MOONSHOT -> DEFAULT_MODEL_MOONSHOT
+    }
+
     private fun getSystemPrompt(): String = prefs.getString(PREF_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT) ?: DEFAULT_SYSTEM_PROMPT
     private fun getMaxTokens(): Int = prefs.getInt(PREF_MAX_TOKENS, DEFAULT_MAX_TOKENS)
     private fun getRagMode(): String = prefs.getString(PREF_RAG_MODE, "kotlin") ?: "kotlin"
+
+    // Create provider configuration for current provider
+    private fun createProviderConfig(): ProviderConfig {
+        val provider = getProvider()
+        val apiKey = getProviderApiKey() ?: ""
+        val model = getModel()
+        return when (provider) {
+            LLMProvider.ANTHROPIC -> ProviderConfig.AnthropicConfig(apiKey, model)
+            LLMProvider.OPENCODE_ZEN -> ProviderConfig.OpenCodeZenConfig(apiKey, model)
+            LLMProvider.NVIDIA -> ProviderConfig.NvidiaConfig(apiKey, model)
+            LLMProvider.MOONSHOT -> ProviderConfig.MoonshotConfig(apiKey, model)
+        }
+    }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -384,45 +652,45 @@ class ClawRunner(private val context: Context) {
         }
     }
 
-    // ── Mode 1: Direct (no RAG) ───────────────────────────────────────────────
+// ── Mode 1: Direct (no RAG) ───────────────────────────────────────────────
 
-    private suspend fun queryDirect(prompt: String, apiKey: String): Result<String> =
-        withContext(Dispatchers.IO) {
-            callAnthropicMessages(
-                apiKey = apiKey,
-                model = getModel(),
-                maxTokens = getMaxTokens(),
-                systemPrompt = getSystemPrompt(),
-                userMessage = prompt
-            )
-        }
+private suspend fun queryDirect(prompt: String, apiKey: String): Result<String> =
+    withContext(Dispatchers.IO) {
+        val config = createProviderConfig()
+        callProviderMessages(
+            config = config,
+            maxTokens = getMaxTokens(),
+            systemPrompt = getSystemPrompt(),
+            userMessage = prompt
+        )
+    }
 
-    // ── Mode 2: Kotlin RAG — pre-search + inject ──────────────────────────────
+// ── Mode 2: Kotlin RAG — pre-search + inject ──────────────────────────────
 
-    private suspend fun queryWithKotlinRag(
-        prompt: String,
-        apiKey: String,
-        forceSearch: Boolean
-    ): Result<String> =
-        withContext(Dispatchers.IO) {
-            var systemPrompt = getSystemPrompt()
-            if (forceSearch || needsWebSearch(prompt)) {
-                Log.i(TAG, "Kotlin RAG: searching for '$prompt'")
-                val results = webSearch(prompt)
-                if (results.isNotEmpty()) {
-                    systemPrompt = buildRagSystemPrompt(systemPrompt, results)
-                    Log.i(TAG, "Kotlin RAG: injected ${results.size} results")
-                }
+private suspend fun queryWithKotlinRag(
+    prompt: String,
+    apiKey: String,
+    forceSearch: Boolean
+): Result<String> =
+    withContext(Dispatchers.IO) {
+        var systemPrompt = getSystemPrompt()
+        if (forceSearch || needsWebSearch(prompt)) {
+            Log.i(TAG, "Kotlin RAG: searching for '$prompt'")
+            val results = webSearch(prompt)
+            if (results.isNotEmpty()) {
+                systemPrompt = buildRagSystemPrompt(systemPrompt, results)
+                Log.i(TAG, "Kotlin RAG: injected ${results.size} results")
             }
-
-            callAnthropicMessages(
-                apiKey = apiKey,
-                model = getModel(),
-                maxTokens = getMaxTokens(),
-                systemPrompt = systemPrompt,
-                userMessage = prompt
-            )
         }
+
+        val config = createProviderConfig()
+        callProviderMessages(
+            config = config,
+            maxTokens = getMaxTokens(),
+            systemPrompt = systemPrompt,
+            userMessage = prompt
+        )
+    }
 
     // ── Mode 3: Opus Tool Use — Claude calls web_search, we execute ───────────
 
@@ -549,72 +817,91 @@ class ClawRunner(private val context: Context) {
             }
         }
 
-    // ── HTTP helpers ──────────────────────────────────────────────────────────
+// ── HTTP helpers ──────────────────────────────────────────────────────────
 
-    /** Call /v1/messages and return the response JSONObject, or null on error. */
-    private fun callAnthropicRaw(apiKey: String, body: String): JSONObject? {
-        return try {
-            val url = URL("https://api.anthropic.com/v1/messages")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.setRequestProperty("x-api-key", apiKey)
-            conn.setRequestProperty("anthropic-version", "2023-06-01")
-            conn.connectTimeout = 30_000
-            conn.readTimeout = 30_000
-            conn.doOutput = true
-            OutputStreamWriter(conn.outputStream).use { it.write(body) }
+/** Generic LLM API call using provider configuration */
+private fun callProviderRaw(config: ProviderConfig, body: String): JSONObject? {
+    return try {
+        val url = URL(config.endpoint)
+        val conn = url.openConnection() as HttpURLConnection
+        conn.requestMethod = "POST"
 
-            val code = conn.responseCode
-            val responseText = if (code == 200)
-                conn.inputStream.bufferedReader().readText()
-            else
-                conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $code"
+        // Set provider-specific headers
+        config.getHeaders().forEach { (key, value) ->
+            conn.setRequestProperty(key, value)
+        }
 
-            Log.i(TAG, "Anthropic raw response code=$code")
-            if (code != 200) {
-                Log.e(TAG, "Anthropic error: $responseText")
-                null
-            } else {
-                JSONObject(responseText)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "HTTP error", e)
+        conn.connectTimeout = 30_000
+        conn.readTimeout = 30_000
+        conn.doOutput = true
+        OutputStreamWriter(conn.outputStream).use { it.write(body) }
+
+        val code = conn.responseCode
+        val responseText = if (code == 200)
+            conn.inputStream.bufferedReader().readText()
+        else
+            conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $code"
+
+        Log.i(TAG, "${config::class.simpleName} response code=$code")
+        if (code != 200) {
+            Log.e(TAG, "API error: $responseText")
             null
+        } else {
+            JSONObject(responseText)
         }
+    } catch (e: Exception) {
+        Log.e(TAG, "HTTP error", e)
+        null
     }
+}
 
-    /** Convenience: call /v1/messages for a simple text response. */
-    private fun callAnthropicMessages(
-        apiKey: String,
-        model: String,
-        maxTokens: Int,
-        systemPrompt: String,
-        userMessage: String
-    ): Result<String> {
-        val body = JSONObject().apply {
-            put("model", model)
-            put("max_tokens", maxTokens)
-            put("system", systemPrompt)
-            put("messages", buildMessagesWithContext(userMessage))
-        }.toString()
+/** Convenience: call LLM API for a simple text response using provider config */
+private fun callProviderMessages(
+    config: ProviderConfig,
+    maxTokens: Int,
+    systemPrompt: String,
+    userMessage: String
+): Result<String> {
+    val messages = buildMessagesWithContext(userMessage)
+    val body = config.buildRequestBody(
+        model = config.model,
+        maxTokens = maxTokens,
+        systemPrompt = systemPrompt,
+        messages = messages
+    ).toString()
 
-        val response = callAnthropicRaw(apiKey, body)
-            ?: return Result.failure(RuntimeException("API call failed"))
+    val response = callProviderRaw(config, body)
+        ?: return Result.failure(RuntimeException("API call failed"))
 
-        return try {
-            val text = response.getJSONArray("content")
-                .getJSONObject(0)
-                .getString("text")
-                .trim()
-            appendConversation("user", userMessage)
-            appendConversation("assistant", text)
-            Log.i(TAG, "Response: '${text.take(80)}'")
-            Result.success(text)
-        } catch (e: Exception) {
-            Result.failure(RuntimeException("Failed to parse response: ${e.message}"))
-        }
+    return try {
+        val text = config.extractResponseText(response)?.trim()
+            ?: return Result.failure(RuntimeException("Failed to extract response text"))
+        appendConversation("user", userMessage)
+        appendConversation("assistant", text)
+        Log.i(TAG, "Response: '${text.take(80)}'")
+        Result.success(text)
+    } catch (e: Exception) {
+        Result.failure(RuntimeException("Failed to parse response: ${e.message}"))
     }
+}
+
+/** Legacy: Call Anthropic API directly (backward compatibility) */
+private fun callAnthropicRaw(apiKey: String, body: String): JSONObject? {
+    val config = ProviderConfig.AnthropicConfig(apiKey)
+    return callProviderRaw(config, body)
+}
+
+/** Legacy: Call Anthropic messages (backward compatibility) */
+private fun callAnthropicMessages(
+    apiKey: String,
+    model: String,
+    maxTokens: Int,
+    systemPrompt: String,
+    userMessage: String
+): Result<String> {
+    val config = ProviderConfig.AnthropicConfig(apiKey, model)
+    return callProviderMessages(config, maxTokens, systemPrompt, userMessage)
+}
 
     private fun buildMessagesWithContext(userMessage: String): JSONArray {
         val snapshot = synchronized(conversationLock) { conversation.toList() }
