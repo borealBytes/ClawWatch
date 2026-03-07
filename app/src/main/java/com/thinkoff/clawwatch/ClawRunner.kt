@@ -139,28 +139,12 @@ sealed class ProviderConfig(
             })
         }
 
-        override fun extractResponseText(response: JSONObject): String? {
-            return try {
-                val message = response.getJSONArray("choices")
-                    .getJSONObject(0)
-                    .getJSONObject("message")
-
-                if (message.has("content") && !message.isNull("content")) {
-                    val content = message.optString("content", "").trim()
-                    if (content.isNotBlank()) {
-                        content
-                    } else {
-                        val reasoning = message.optString("reasoning_content", "").trim()
-                        if (reasoning.isNotBlank()) reasoning else null
-                    }
-                } else {
-                    val reasoning = message.optString("reasoning_content", "").trim()
-                    if (reasoning.isNotBlank()) reasoning else null
-                }
-            } catch (e: Exception) {
-                null
-            }
-        }
+  override fun extractResponseText(response: JSONObject): String? = try {
+    response.getJSONArray("choices")
+      .getJSONObject(0)
+      .getJSONObject("message")
+      .getString("content")
+  } catch (e: Exception) { null }
     }
 
     data class MoonshotConfig(
