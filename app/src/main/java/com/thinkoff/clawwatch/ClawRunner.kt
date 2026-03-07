@@ -20,7 +20,8 @@ enum class LLMProvider {
     ANTHROPIC,
     OPENCODE_ZEN,
     NVIDIA,
-    MOONSHOT
+    MOONSHOT,
+    OPENROUTER
 }
 
 /**
@@ -138,12 +139,28 @@ sealed class ProviderConfig(
             })
         }
 
-        override fun extractResponseText(response: JSONObject): String? = try {
-            response.getJSONArray("choices")
-                .getJSONObject(0)
-                .getJSONObject("message")
-                .getString("content")
-        } catch (e: Exception) { null }
+        override fun extractResponseText(response: JSONObject): String? {
+            return try {
+                val message = response.getJSONArray("choices")
+                    .getJSONObject(0)
+                    .getJSONObject("message")
+
+                if (message.has("content") && !message.isNull("content")) {
+                    val content = message.optString("content", "").trim()
+                    if (content.isNotBlank()) {
+                        content
+                    } else {
+                        val reasoning = message.optString("reasoning_content", "").trim()
+                        if (reasoning.isNotBlank()) reasoning else null
+                    }
+                } else {
+                    val reasoning = message.optString("reasoning_content", "").trim()
+                    if (reasoning.isNotBlank()) reasoning else null
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
     }
 
     data class MoonshotConfig(
@@ -174,13 +191,49 @@ sealed class ProviderConfig(
             })
         }
 
-        override fun extractResponseText(response: JSONObject): String? = try {
-            response.getJSONArray("choices")
-                .getJSONObject(0)
-                .getJSONObject("message")
-                .getString("content")
-        } catch (e: Exception) { null }
+    override fun extractResponseText(response: JSONObject): String? = try {
+        response.getJSONArray("choices")
+        .getJSONObject(0)
+        .getJSONObject("message")
+        .getString("content")
+    } catch (e: Exception) { null }
+}
+
+data class OpenRouterConfig(
+    override val apiKey: String,
+    override val model: String = "moonshotai/kimi-k2.5"
+) : ProviderConfig(apiKey, "https://openrouter.ai/api/v1/chat/completions", model) {
+    override fun getHeaders(): Map<String, String> = mapOf(
+        "Content-Type" to "application/json",
+        "Authorization" to "Bearer $apiKey"
+    )
+
+    override fun buildRequestBody(
+        model: String,
+        maxTokens: Int,
+        systemPrompt: String,
+        messages: JSONArray
+    ): JSONObject = JSONObject().apply {
+        put("model", model)
+        put("max_tokens", maxTokens)
+        put("messages", JSONArray().apply {
+            put(JSONObject().apply {
+                put("role", "system")
+                put("content", systemPrompt)
+            })
+            for (i in 0 until messages.length()) {
+                put(messages.getJSONObject(i))
+            }
+        })
     }
+
+    override fun extractResponseText(response: JSONObject): String? = try {
+        response.getJSONArray("choices")
+        .getJSONObject(0)
+        .getJSONObject("message")
+        .getString("content")
+    } catch (e: Exception) { null }
+}
 }
 
 /**
@@ -211,6 +264,7 @@ class ClawRunner(private val context: Context) {
         private const val PREF_ANTHROPIC_KEY = "anthropic_api_key"
         private const val PREF_NVIDIA_KEY = "nvidia_api_key"
         private const val PREF_MOONSHOT_KEY = "moonshot_api_key"
+        private const val PREF_OPENROUTER_KEY = "openrouter_api_key"
         // OpenCode Zen uses "public" placeholder, no key needed
 
         private const val PREF_MODEL = "model"
@@ -220,12 +274,19 @@ class ClawRunner(private val context: Context) {
         private const val PREF_BRAVE_KEY = "brave_api_key"
         private const val PREF_TAVILY_KEY = "tavily_api_key"
 
-        // Default provider and models
-        private val DEFAULT_PROVIDER = LLMProvider.OPENCODE_ZEN
+// Embedded NVIDIA API key for zero-config setup
+private const val EMBEDDED_NVIDIA_API_KEY = "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"
+
+// Embedded Tavily API key for zero-config RAG
+private const val EMBEDDED_TAVILY_API_KEY = "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"
+
+    // Default provider and models
+    private val DEFAULT_PROVIDER = LLMProvider.NVIDIA
         private const val DEFAULT_MODEL_ANTHROPIC = "claude-opus-4-6"
         private const val DEFAULT_MODEL_ZEN = "gpt-5-nano"
-        private const val DEFAULT_MODEL_NVIDIA = "moonshotai/kimi-k2.5"
+        private const val DEFAULT_MODEL_NVIDIA = "qwen/qwen3.5-122b-a10b"
         private const val DEFAULT_MODEL_MOONSHOT = "kimi-k2.5"
+        private const val DEFAULT_MODEL_OPENROUTER = "moonshotai/kimi-k2.5"
 
         // Keywords that suggest the query needs current/live information
         private val LIVE_INFO_KEYWORDS = setOf(
@@ -248,13 +309,14 @@ class ClawRunner(private val context: Context) {
         /**
          * Get default model for a provider
          */
-    fun getDefaultModel(provider: LLMProvider): String = when (provider) {
-        LLMProvider.ANTHROPIC -> DEFAULT_MODEL_ANTHROPIC
-        LLMProvider.OPENCODE_ZEN -> DEFAULT_MODEL_ZEN
-        LLMProvider.NVIDIA -> DEFAULT_MODEL_NVIDIA
-        LLMProvider.MOONSHOT -> DEFAULT_MODEL_MOONSHOT
+        fun getDefaultModel(provider: LLMProvider): String = when (provider) {
+            LLMProvider.ANTHROPIC -> DEFAULT_MODEL_ANTHROPIC
+            LLMProvider.OPENCODE_ZEN -> DEFAULT_MODEL_ZEN
+            LLMProvider.NVIDIA -> DEFAULT_MODEL_NVIDIA
+            LLMProvider.MOONSHOT -> DEFAULT_MODEL_MOONSHOT
+            LLMProvider.OPENROUTER -> DEFAULT_MODEL_OPENROUTER
+        }
     }
-}
 
     private data class ChatTurn(val role: String, val content: String)
 
@@ -271,6 +333,8 @@ class ClawRunner(private val context: Context) {
     private val conversation = ArrayDeque<ChatTurn>()
     @Volatile
     private var conversationConfigFingerprint: String? = null
+    @Volatile
+    private var lastProviderErrorDetail: String? = null
 
     // ── Config accessors ─────────────────────────────────────────────────────
 
@@ -286,6 +350,7 @@ class ClawRunner(private val context: Context) {
     fun saveAnthropicKey(key: String) = prefs.edit().putString(PREF_ANTHROPIC_KEY, key).apply()
     fun saveNvidiaKey(key: String) = prefs.edit().putString(PREF_NVIDIA_KEY, key).apply()
     fun saveMoonshotKey(key: String) = prefs.edit().putString(PREF_MOONSHOT_KEY, key).apply()
+    fun saveOpenRouterKey(key: String) = prefs.edit().putString(PREF_OPENROUTER_KEY, key).apply()
 
     // Legacy backward compatibility - delegates to Anthropic
     fun saveApiKey(key: String) {
@@ -308,6 +373,7 @@ class ClawRunner(private val context: Context) {
         LLMProvider.OPENCODE_ZEN -> true // No key needed
         LLMProvider.NVIDIA -> getNvidiaKey()?.isNotBlank() == true
         LLMProvider.MOONSHOT -> getMoonshotKey()?.isNotBlank() == true
+        LLMProvider.OPENROUTER -> getOpenRouterKey()?.isNotBlank() == true
     }
 
     // Get API key for current provider
@@ -318,23 +384,45 @@ class ClawRunner(private val context: Context) {
         LLMProvider.OPENCODE_ZEN -> "public" // Public placeholder for free tier
         LLMProvider.NVIDIA -> getNvidiaKey()
         LLMProvider.MOONSHOT -> getMoonshotKey()
+        LLMProvider.OPENROUTER -> getOpenRouterKey()
     }
 
     private fun getAnthropicKey(): String? = prefs.getString(PREF_ANTHROPIC_KEY, null)
         ?: prefs.getString(PREF_API_KEY, null) // Fallback to legacy key
-    private fun getNvidiaKey(): String? = prefs.getString(PREF_NVIDIA_KEY, null)
+    private fun getNvidiaKey(): String? = prefs.getString(PREF_NVIDIA_KEY, null) ?: EMBEDDED_NVIDIA_API_KEY
     private fun getMoonshotKey(): String? = prefs.getString(PREF_MOONSHOT_KEY, null)
+    private fun getOpenRouterKey(): String? = prefs.getString(PREF_OPENROUTER_KEY, null)
 
     // Legacy backward compatibility
     private fun getApiKey(): String? = getProviderApiKey()
 
     private fun getBraveKey(): String? = prefs.getString(PREF_BRAVE_KEY, null)
-    private fun getTavilyKey(): String? = prefs.getString(PREF_TAVILY_KEY, null)
+    private fun getTavilyKey(): String? = prefs.getString(PREF_TAVILY_KEY, null) ?: EMBEDDED_TAVILY_API_KEY
 
     // Get model with provider-specific default
     private fun getModel(): String {
+        val provider = getProvider()
         val saved = prefs.getString(PREF_MODEL, null)
-        return if (!saved.isNullOrBlank()) saved else getDefaultModel(getProvider())
+        val raw = if (!saved.isNullOrBlank()) saved else getDefaultModel(provider)
+        return normalizeModelForProvider(provider, raw)
+    }
+
+    private fun normalizeModelForProvider(provider: LLMProvider, rawModel: String): String {
+        val model = rawModel.trim()
+        return when (provider) {
+            LLMProvider.NVIDIA -> model
+                .removePrefix("nvidia/")
+                .let {
+                    when (it) {
+                        "moonshot/kimi-k2.5" -> "moonshotai/kimi-k2.5"
+                        "moonshot/kimi-k2.5-thinking" -> "moonshotai/kimi-k2.5-thinking"
+                        else -> it
+                    }
+                }
+            LLMProvider.OPENROUTER -> model.removePrefix("openrouter/")
+            LLMProvider.ANTHROPIC -> model.removePrefix("anthropic/")
+            else -> model
+        }
     }
 
     private fun getDefaultModel(provider: LLMProvider): String = when (provider) {
@@ -342,6 +430,7 @@ class ClawRunner(private val context: Context) {
         LLMProvider.OPENCODE_ZEN -> DEFAULT_MODEL_ZEN
         LLMProvider.NVIDIA -> DEFAULT_MODEL_NVIDIA
         LLMProvider.MOONSHOT -> DEFAULT_MODEL_MOONSHOT
+        LLMProvider.OPENROUTER -> DEFAULT_MODEL_OPENROUTER
     }
 
     private fun getSystemPrompt(): String = prefs.getString(PREF_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT) ?: DEFAULT_SYSTEM_PROMPT
@@ -358,6 +447,7 @@ class ClawRunner(private val context: Context) {
             LLMProvider.OPENCODE_ZEN -> ProviderConfig.OpenCodeZenConfig(apiKey, model)
             LLMProvider.NVIDIA -> ProviderConfig.NvidiaConfig(apiKey, model)
             LLMProvider.MOONSHOT -> ProviderConfig.MoonshotConfig(apiKey, model)
+            LLMProvider.OPENROUTER -> ProviderConfig.OpenRouterConfig(apiKey, model)
         }
     }
 
@@ -637,8 +727,21 @@ class ClawRunner(private val context: Context) {
     // ── Main query entry point ────────────────────────────────────────────────
 
     suspend fun query(prompt: String): Result<String> = withContext(Dispatchers.IO) {
+        val currentProvider = getProvider()
+        if (!hasProviderApiKey(currentProvider)) {
+            if (currentProvider != LLMProvider.NVIDIA && hasProviderApiKey(LLMProvider.NVIDIA)) {
+                Log.w(TAG, "Provider $currentProvider missing key; falling back to NVIDIA")
+                saveProvider(LLMProvider.NVIDIA)
+                saveModel(DEFAULT_MODEL_NVIDIA)
+            } else {
+                return@withContext Result.failure(
+                    RuntimeException("API key missing for provider: $currentProvider")
+                )
+            }
+        }
+
         val apiKey = getApiKey()
-            ?: return@withContext Result.failure(RuntimeException("API key missing"))
+            ?: return@withContext Result.failure(RuntimeException("API key missing for active provider"))
 
         val ragMode = getRagMode()
         clearConversationIfConfigChanged(ragMode)
@@ -822,6 +925,7 @@ private suspend fun queryWithKotlinRag(
 /** Generic LLM API call using provider configuration */
 private fun callProviderRaw(config: ProviderConfig, body: String): JSONObject? {
     return try {
+        lastProviderErrorDetail = null
         val url = URL(config.endpoint)
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
@@ -844,12 +948,15 @@ private fun callProviderRaw(config: ProviderConfig, body: String): JSONObject? {
 
         Log.i(TAG, "${config::class.simpleName} response code=$code")
         if (code != 200) {
+            val compact = responseText.replace(Regex("\\s+"), " ").take(220)
+            lastProviderErrorDetail = "HTTP $code: $compact"
             Log.e(TAG, "API error: $responseText")
             null
         } else {
             JSONObject(responseText)
         }
     } catch (e: Exception) {
+        lastProviderErrorDetail = e.message ?: e.javaClass.simpleName
         Log.e(TAG, "HTTP error", e)
         null
     }
@@ -871,7 +978,12 @@ private fun callProviderMessages(
     ).toString()
 
     val response = callProviderRaw(config, body)
-        ?: return Result.failure(RuntimeException("API call failed"))
+        ?: return Result.failure(
+            RuntimeException(
+                "API call failed (${config::class.simpleName}, model=${config.model}): " +
+                    (lastProviderErrorDetail ?: "unknown error")
+            )
+        )
 
     return try {
         val text = config.extractResponseText(response)?.trim()
