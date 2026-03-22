@@ -1,0 +1,15 @@
+Task 2 Evidence: EMBEDDED_TAVILY_API_KEY Addition
+==================================================
+
+File: /home/clay/dev/ClawWatch/app/src/main/java/com/thinkoff/clawwatch/ClawRunner.kt
+
+Change Applied:
+Added after EMBEDDED_NVIDIA_API_KEY (line 278):
+
+// Embedded Tavily API key for zero-config RAG
+private const val EMBEDDED_TAVILY_API_KEY = "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"
+
+Verification (grep output):
+281: private const val EMBEDDED_TAVILY_API_KEY = "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"
+
+Status: COMPLETED

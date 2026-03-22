@@ -1,0 +1,15 @@
+Task 2 Evidence: getTavilyKey() Fallback Modification
+======================================================
+
+File: /home/clay/dev/ClawWatch/app/src/main/java/com/thinkoff/clawwatch/ClawRunner.kt
+
+Change Applied:
+- OLD: private fun getTavilyKey(): String? = prefs.getString(PREF_TAVILY_KEY, null)
+- NEW: private fun getTavilyKey(): String? = prefs.getString(PREF_TAVILY_KEY, null) ?: EMBEDDED_TAVILY_API_KEY
+
+Verification (grep output):
+400: private fun getTavilyKey(): String? = prefs.getString(PREF_TAVILY_KEY, null) ?: EMBEDDED_TAVILY_API_KEY
+
+The function now returns the embedded key as a fallback when no user-configured key exists.
+
+Status: COMPLETED

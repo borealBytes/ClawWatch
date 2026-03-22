@@ -1,0 +1,5 @@
+      <optgroup label="NVIDIA NIM (Recommended)">
+        <option value="qwen/qwen3.5-122b-a10b" selected>nvidia/qwen/qwen3.5-122b-a10b (default)</option>
+        <option value="moonshotai/kimi-k2.5">nvidia/moonshotai/kimi-k2.5</option>
+    <option value="moonshotai/kimi-k2.5-thinking">nvidia/moonshotai/kimi-k2.5-thinking</option>
+  </optgroup>

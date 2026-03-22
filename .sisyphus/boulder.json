@@ -1,0 +1,11 @@
+{
+  "active_plan": "/home/clay/dev/ClawWatch/.sisyphus/plans/qwen-model-tavily-key.md",
+  "started_at": "2026-03-07T07:21:46.723Z",
+  "session_ids": [
+    "ses_338e659cbffe4wCxD53XkFfRZ3",
+    "ses_2e8eed834ffesCfmadNtNfySui"
+  ],
+  "plan_name": "qwen-model-tavily-key",
+  "agent": "atlas",
+  "worktree_path": "/home/clay/dev/ClawWatch"
+}

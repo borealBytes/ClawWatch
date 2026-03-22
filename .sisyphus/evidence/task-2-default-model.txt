@@ -1,0 +1,13 @@
+Task 2 Evidence: DEFAULT_MODEL_NVIDIA Change
+================================================
+
+File: /home/clay/dev/ClawWatch/app/src/main/java/com/thinkoff/clawwatch/ClawRunner.kt
+
+Change Applied:
+- OLD: private const val DEFAULT_MODEL_NVIDIA = "moonshotai/kimi-k2.5"
+- NEW: private const val DEFAULT_MODEL_NVIDIA = "qwen/qwen3.5-122b-a10b"
+
+Verification (grep output):
+287: private const val DEFAULT_MODEL_NVIDIA = "qwen/qwen3.5-122b-a10b"
+
+Status: COMPLETED
