@@ -1,0 +1,23 @@
+Task 3 Evidence: Verify Qwen + Tavily changes in source
+=================================================
+
+Source: app/src/main/java/com/thinkoff/clawwatch/ClawRunner.kt
+
+1) DEFAULT_MODEL_NVIDIA
+271:        private const val DEFAULT_MODEL_NVIDIA = "qwen/qwen3.5-122b-a10b"
+299:            LLMProvider.NVIDIA -> DEFAULT_MODEL_NVIDIA
+415:        LLMProvider.NVIDIA -> DEFAULT_MODEL_NVIDIA
+719:                saveModel(DEFAULT_MODEL_NVIDIA)
+
+2) Embedded Tavily key declaration
+265:private const val EMBEDDED_TAVILY_API_KEY = "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"
+384:    private fun getTavilyKey(): String? = prefs.getString(PREF_TAVILY_KEY, null) ?: EMBEDDED_TAVILY_API_KEY
+
+3) getTavilyKey fallback
+384:    private fun getTavilyKey(): String? = prefs.getString(PREF_TAVILY_KEY, null) ?: EMBEDDED_TAVILY_API_KEY
+510:        val tavilyKey = getTavilyKey()
+
+4) Build artifact path check
+-rw-rw-r-- 1 clay clay 74210051 Mar  7 16:25 app/build/outputs/apk/debug/app-debug.apk
+
+Status: COMPLETED

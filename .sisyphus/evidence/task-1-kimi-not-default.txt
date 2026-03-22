@@ -1,0 +1,16 @@
+Task 1 Evidence: Kimi option is not default
+==========================================
+
+Source: admin/index.html
+
+NVIDIA model options block:
+   395	      <optgroup label="NVIDIA NIM (Recommended)">
+   396	        <option value="qwen/qwen3.5-122b-a10b" selected>nvidia/qwen/qwen3.5-122b-a10b (default)</option>
+   397	        <option value="moonshotai/kimi-k2.5">nvidia/moonshotai/kimi-k2.5</option>
+   398	    <option value="moonshotai/kimi-k2.5-thinking">nvidia/moonshotai/kimi-k2.5-thinking</option>
+   399	  </optgroup>
+   400	  <optgroup label="OpenRouter">
+   401	    <option value="moonshotai/kimi-k2.5">openrouter/moonshotai/kimi-k2.5</option>
+
+Verification: Only Qwen option has selected attribute.
+Status: COMPLETED

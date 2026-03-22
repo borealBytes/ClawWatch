@@ -1,0 +1,152 @@
+=== BUILD START ===
+Command: ./gradlew assembleDebug
+Working directory: /home/clay/dev/ClawWatch
+Started at: 2026-03-22T16:10:32-04:00
+Starting a Gradle Daemon, 1 incompatible and 1 stopped Daemons could not be reused, use --status for details
+
+[Incubating] Problems report is available at: file:///home/clay/dev/ClawWatch/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Could not determine the dependencies of task ':app:packageDebug'.
+> Could not create task ':app:compileDebugJavaWithJavac'.
+   > Failed to calculate the value of task ':app:compileDebugJavaWithJavac' property 'javaCompiler'.
+      > Toolchain installation '/usr/lib/jvm/java-21-openjdk-amd64' does not provide the required capabilities: [JAVA_COMPILER]
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 4s
+Completed at: 2026-03-22T16:10:37-04:00
+Exit code: 1
+Result: BUILD FAILED
+
+=== BUILD RETRY (JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64) ===
+Command: JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 ./gradlew assembleDebug
+Started at: 2026-03-22T16:10:43-04:00
+openjdk version "17.0.18" 2026-01-20
+OpenJDK Runtime Environment (build 17.0.18+8-Ubuntu-124.04.1)
+OpenJDK 64-Bit Server VM (build 17.0.18+8-Ubuntu-124.04.1, mixed mode, sharing)
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.3.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors
+> Task :app:dataBindingMergeDependencyArtifactsDebug UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:dataBindingGenBaseClassesDebug UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:compileDebugKotlin UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:compileDebugJavaWithJavac UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:dexBuilderDebug UP-TO-DATE
+> Task :app:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :app:processDebugJavaRes UP-TO-DATE
+> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:mergeProjectDexDebug UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:packageDebug UP-TO-DATE
+> Task :app:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleDebug UP-TO-DATE
+> Task :phone:preBuild UP-TO-DATE
+> Task :phone:preDebugBuild UP-TO-DATE
+> Task :phone:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :phone:checkKotlinGradlePluginConfigurationErrors
+> Task :phone:dataBindingMergeDependencyArtifactsDebug UP-TO-DATE
+> Task :phone:generateDebugResValues UP-TO-DATE
+> Task :phone:generateDebugResources UP-TO-DATE
+> Task :phone:mergeDebugResources UP-TO-DATE
+> Task :phone:packageDebugResources UP-TO-DATE
+> Task :phone:parseDebugLocalResources UP-TO-DATE
+> Task :phone:dataBindingGenBaseClassesDebug UP-TO-DATE
+> Task :phone:checkDebugAarMetadata UP-TO-DATE
+> Task :phone:mapDebugSourceSetPaths UP-TO-DATE
+> Task :phone:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :phone:extractDeepLinksDebug UP-TO-DATE
+> Task :phone:processDebugMainManifest UP-TO-DATE
+> Task :phone:processDebugManifest UP-TO-DATE
+> Task :phone:processDebugManifestForPackage UP-TO-DATE
+> Task :phone:processDebugResources UP-TO-DATE
+> Task :phone:compileDebugKotlin UP-TO-DATE
+> Task :phone:javaPreCompileDebug UP-TO-DATE
+> Task :phone:compileDebugJavaWithJavac UP-TO-DATE
+> Task :phone:mergeDebugShaders UP-TO-DATE
+> Task :phone:compileDebugShaders NO-SOURCE
+> Task :phone:generateDebugAssets UP-TO-DATE
+> Task :phone:mergeDebugAssets UP-TO-DATE
+> Task :phone:compressDebugAssets UP-TO-DATE
+> Task :phone:desugarDebugFileDependencies UP-TO-DATE
+> Task :phone:dexBuilderDebug UP-TO-DATE
+> Task :phone:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :phone:processDebugJavaRes UP-TO-DATE
+> Task :phone:mergeDebugJavaResource UP-TO-DATE
+> Task :phone:checkDebugDuplicateClasses UP-TO-DATE
+> Task :phone:mergeExtDexDebug UP-TO-DATE
+> Task :phone:mergeLibDexDebug UP-TO-DATE
+> Task :phone:mergeProjectDexDebug UP-TO-DATE
+> Task :phone:mergeDebugJniLibFolders UP-TO-DATE
+> Task :phone:mergeDebugNativeLibs NO-SOURCE
+> Task :phone:stripDebugDebugSymbols NO-SOURCE
+> Task :phone:validateSigningDebug UP-TO-DATE
+> Task :phone:writeDebugAppMetadata UP-TO-DATE
+> Task :phone:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :phone:packageDebug UP-TO-DATE
+> Task :phone:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :phone:assembleDebug UP-TO-DATE
+
+BUILD SUCCESSFUL in 1s
+76 actionable tasks: 2 executed, 74 up-to-date
+Completed at: 2026-03-22T16:10:45-04:00
+Exit code: 0
+Result: BUILD SUCCEEDED
+
+=== APK CHECK ===
+APK_EXISTS: YES
+-rw-rw-r-- 1 clay clay 74210051 Mar  7 16:25 app/build/outputs/apk/debug/app-debug.apk

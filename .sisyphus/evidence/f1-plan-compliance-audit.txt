@@ -1,0 +1,38 @@
+Final Verification Wave (F1): Plan Compliance Audit
+===============================================
+
+Plan: .sisyphus/plans/qwen-model-tavily-key.md
+Timestamp: 2026-03-22T16:19:58-04:00
+
+[1] Qwen added to admin dropdown with selected
+396:        <option value="qwen/qwen3.5-122b-a10b" selected>nvidia/qwen/qwen3.5-122b-a10b (default)</option>
+
+[2] Kimi no longer selected
+PASS: kimi-k2.5 not selected
+
+[3] DEFAULT_MODEL_NVIDIA changed to qwen
+271:        private const val DEFAULT_MODEL_NVIDIA = "qwen/qwen3.5-122b-a10b"
+
+[4] EMBEDDED_TAVILY_API_KEY constant exists
+265:private const val EMBEDDED_TAVILY_API_KEY = "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"
+384:    private fun getTavilyKey(): String? = prefs.getString(PREF_TAVILY_KEY, null) ?: EMBEDDED_TAVILY_API_KEY
+
+[5] getTavilyKey() uses embedded fallback
+384:    private fun getTavilyKey(): String? = prefs.getString(PREF_TAVILY_KEY, null) ?: EMBEDDED_TAVILY_API_KEY
+
+[6] Build verification + APK artifact
+148:Result: BUILD SUCCEEDED
+147:Exit code: 0
+-rw-rw-r-- 1 clay clay 74210051 Mar  7 16:25 app/build/outputs/apk/debug/app-debug.apk
+
+[7] Required evidence files present
+.sisyphus/evidence/task-1-kimi-not-default.txt
+.sisyphus/evidence/task-1-qwen-in-dropdown.txt
+.sisyphus/evidence/task-2-default-model.txt
+.sisyphus/evidence/task-2-tavily-embedded.txt
+.sisyphus/evidence/task-2-tavily-fallback.txt
+.sisyphus/evidence/task-3-build-success.txt
+.sisyphus/evidence/task-3-changes-verified.txt
+
+VERDICT: APPROVE
+All acceptance criteria in qwen-model-tavily-key.md are satisfied.
