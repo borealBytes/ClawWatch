@@ -259,10 +259,10 @@ class ClawRunner(private val context: Context) {
         private const val PREF_TAVILY_KEY = "tavily_api_key"
 
 // Embedded NVIDIA API key for zero-config setup
-private const val EMBEDDED_NVIDIA_API_KEY = "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"
+private const val EMBEDDED_NVIDIA_API_KEY = "nvapi-..."
 
 // Embedded Tavily API key for zero-config RAG
-private const val EMBEDDED_TAVILY_API_KEY = "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"
+private const val EMBEDDED_TAVILY_API_KEY = "tvly-dev-pk..."
 
     // Default provider and models
     private val DEFAULT_PROVIDER = LLMProvider.NVIDIA
